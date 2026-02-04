@@ -111,9 +111,8 @@ INSTRUCTIONS:
       job.status = "running_claude";
       job.step = "running_claude";
       console.log(`[job:${jobId}] running_claude`);
-      // chown so non-root user can access the cloned repo, and mark it as safe for git
+      // chown so non-root user can access the cloned repo
       execSync(`chown -R claudeuser:claudeuser ${WORKDIR}`, { shell: "/bin/bash" });
-      execSync(`su -s /bin/bash claudeuser -c "git config --global --add safe.directory ${WORKDIR}"`, { shell: "/bin/bash" });
       const claudeOutput = execSync(
         `su -p -s /bin/bash claudeuser -c "cat TASK.md | claude -p --dangerously-skip-permissions" 2>&1`,
         {
