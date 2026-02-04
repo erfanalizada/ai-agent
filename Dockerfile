@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
 # Install Claude CLI (API mode)
 RUN npm install -g @anthropic-ai/claude-code
 
+# Create non-root user (claude CLI refuses --dangerously-skip-permissions as root)
+RUN useradd -m claudeuser && mkdir -p /tmp/client-demo && chown claudeuser:claudeuser /tmp/client-demo
+
 WORKDIR /app
 COPY . .
 

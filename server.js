@@ -111,16 +111,18 @@ INSTRUCTIONS:
       job.status = "running_claude";
       job.step = "running_claude";
       console.log(`[job:${jobId}] running_claude`);
-      execSync(
-        `cat TASK.md | claude -p --dangerously-skip-permissions`,
+      // chown so non-root user can access the cloned repo
+      execSync(`chown -R claudeuser:claudeuser ${WORKDIR}`, { shell: "/bin/bash" });
+      const claudeOutput = execSync(
+        `su -p -s /bin/bash claudeuser -c "cat TASK.md | claude -p --dangerously-skip-permissions" 2>&1`,
         {
           cwd: WORKDIR,
           env: process.env,
           shell: "/bin/bash",
-          stdio: "inherit",
           timeout: 120000
         }
-      );
+      ).toString();
+      console.log(`[job:${jobId}] claude output:`, claudeOutput);
 
       // 5. Commit & push changes
       job.status = "committing";
@@ -138,10 +140,12 @@ INSTRUCTIONS:
       job.step = "completed";
       console.log(`[job:${jobId}] completed`);
     } catch (err) {
-      console.error(`[job:${jobId}] failed:`, err);
+      const stderr = err.stderr ? err.stderr.toString() : "";
+      const stdout = err.stdout ? err.stdout.toString() : "";
+      console.error(`[job:${jobId}] failed:`, err.message, "\nstderr:", stderr, "\nstdout:", stdout);
       job.status = "failed";
       job.step = "failed";
-      job.error = err.toString();
+      job.error = stderr || stdout || err.message;
     }
   })();
 });
