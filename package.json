@@ -1,0 +1,9 @@
+{
+  "name": "ai-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.19.2",
+    "simple-git": "^3.22.0"
+  }
+}
