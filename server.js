@@ -93,13 +93,27 @@ Do not create new files. Only edit "${file}".`;
       // chown so non-root user can access the cloned repo
       execSync(`chown -R claudeuser:claudeuser ${WORKDIR}`, { shell: "/bin/bash" });
 
-      // Write prompt to temp file outside the repo
-      const promptPath = "/tmp/claude-prompt.txt";
-      fs.writeFileSync(promptPath, prompt);
-      execSync(`chown claudeuser:claudeuser ${promptPath}`, { shell: "/bin/bash" });
+      // Write prompt to a unique temp file outside the repo
+      const promptPath = `/tmp/claude-prompt-${jobId}.txt`;
+      fs.writeFileSync(promptPath, prompt, { mode: 0o644 });
+
+      // Build env string to pass all relevant vars to claudeuser
+      const envVars = Object.entries(process.env)
+        .filter(([k]) => k.startsWith("ANTHROPIC") || k === "PATH" || k === "NODE_ENV")
+        .map(([k, v]) => `export ${k}='${v.replace(/'/g, "'\\''")}'`)
+        .join(" && ");
+
+      const claudeCmd = [
+        `export HOME=/home/claudeuser`,
+        envVars,
+        `cd ${WORKDIR}`,
+        `claude -p --dangerously-skip-permissions --verbose < ${promptPath}`
+      ].filter(Boolean).join(" && ");
+
+      console.log(`[job:${jobId}] running command as claudeuser`);
 
       const claudeOutput = execSync(
-        `su -p -s /bin/bash claudeuser -c "claude -p --dangerously-skip-permissions < ${promptPath}"`,
+        `su -s /bin/bash claudeuser -c "${claudeCmd.replace(/"/g, '\\"')}"`,
         {
           cwd: WORKDIR,
           env: process.env,
