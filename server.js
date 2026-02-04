@@ -2,81 +2,99 @@ import express from "express";
 import simpleGit from "simple-git";
 import { execSync } from "child_process";
 import fs from "fs";
+import path from "path";
 
 const app = express();
 app.use(express.json());
 
 const WORKDIR = "/tmp/client-demo";
 
-// GitHub repo (PAT via Railway env var)
+// GitHub repo (PAT comes from Railway env var)
 const CLIENT_REPO_URL =
-  "https://erfanalizada:${process.env.GITHUB_TOKEN}@github.com/erfanalizada/client-demo.git";
+  "https://erfanalizada:" +
+  process.env.GITHUB_TOKEN +
+  "@github.com/erfanalizada/client-demo.git";
 
 /**
- * TEMP: Test Claude 4.5 (Sonnet)
- * Remove after verification
+ * =========================
+ * TEMP TEST ENDPOINT
+ * =========================
+ * Confirms claude-code is installed and runnable.
+ * DELETE after verification.
  */
 app.get("/test-claude", (req, res) => {
   try {
-    const output = execSync(
-      `claude chat --model claude-3-5-sonnet-latest --prompt "Say: Claude Sonnet 4.5 works"`,
-      {
-        env: process.env,
-        shell: "/bin/bash"
-      }
-    ).toString();
+    const output = execSync("claude-code --version", {
+      env: process.env,
+      shell: "/bin/bash"
+    }).toString();
 
     res.status(200).send(output);
   } catch (err) {
-    console.error(err);
     res.status(500).send(err.toString());
   }
 });
 
 /**
+ * =========================
  * MAIN AI AGENT ENDPOINT
+ * =========================
  */
 app.post("/report", async (req, res) => {
   const { issue, expected, file } = req.body;
 
+  if (!issue || !expected || !file) {
+    return res.status(400).json({
+      error: "Missing required fields: issue, expected, file"
+    });
+  }
+
   try {
-    // Clean workspace
+    // 1. Clean workspace
     if (fs.existsSync(WORKDIR)) {
       fs.rmSync(WORKDIR, { recursive: true, force: true });
     }
 
-    // Clone repo
+    // 2. Clone client repo
     await simpleGit().clone(CLIENT_REPO_URL, WORKDIR);
     const git = simpleGit(WORKDIR);
 
-    // Claude prompt
-    const prompt = `
+    // 3. Create Claude Code task file
+    const task = `
 You are a senior frontend developer.
 
-Fix the bug in the repository.
+GOAL:
+Fix the reported bug in this repository.
 
-Rules:
+CONSTRAINTS:
 - Make the smallest possible change
-- Do not add dependencies
-- Modify only what is required
+- Do NOT add dependencies
+- Do NOT refactor unrelated code
+- Modify ONLY what is required
 
-Issue:
+REPORTED ISSUE:
 ${issue}
 
-Expected behavior:
+EXPECTED BEHAVIOR:
 ${expected}
 
-Target file:
+TARGET FILE:
 ${file}
 
-Apply the fix directly in the code.
+INSTRUCTIONS:
+- Apply the fix directly in the codebase
+- Do not explain, just implement
 `;
 
-    fs.writeFileSync(`${WORKDIR}/prompt.txt`, prompt);
+    const taskPath = path.join(WORKDIR, "TASK.md");
+    fs.writeFileSync(taskPath, task.trim());
 
-    // Run Claude Sonnet 4.5
+    // 4. Run Claude Code (repo-aware edit)
     execSync(
-      `cd ${WORKDIR} && claude chat --model claude-3-5-sonnet-latest --prompt "$(cat prompt.txt)"`,
+      `
+      cd ${WORKDIR}
+      claude-code apply TASK.md
+      `,
       {
         env: process.env,
         shell: "/bin/bash",
@@ -84,15 +102,20 @@ Apply the fix directly in the code.
       }
     );
 
-    // Commit & push
+    // 5. Commit & push changes
     await git.add(".");
-    await git.commit("AI fix: alert button not working");
+    await git.commit("AI fix: reported frontend issue");
     await git.push("origin", "main");
 
-    res.status(200).json({ status: "success" });
+    res.status(200).json({
+      status: "success",
+      message: "Issue fixed and deployed"
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.toString() });
+    res.status(500).json({
+      error: err.toString()
+    });
   }
 });
 
