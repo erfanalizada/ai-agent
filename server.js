@@ -77,51 +77,45 @@ app.post("/report", (req, res) => {
       await simpleGit().clone(CLIENT_REPO_URL, WORKDIR);
       const git = simpleGit(WORKDIR);
 
-      // 3. Read the target file, send content to Claude, write fixed version back
-      const targetPath = path.join(WORKDIR, file);
-      const originalContent = fs.readFileSync(targetPath, "utf-8");
-
-      const prompt = `You are a senior frontend developer. Here is the contents of the file "${file}":
-
-\`\`\`
-${originalContent}
-\`\`\`
+      // 3. Build prompt for Claude to act as a full agent (read, edit files itself)
+      const prompt = `Find and fix this bug in the file "${file}" in this project directory. Use your tools to read the file, then edit it directly.
 
 REPORTED ISSUE: ${issue}
 EXPECTED BEHAVIOR: ${expected}
 
-Output ONLY the complete fixed file content. No explanations, no markdown fences, no commentary. Just the raw file content ready to be saved.`;
+Do not create new files. Only edit "${file}".`;
 
-      // 4. Run Claude Code in print mode to get the fixed file
+      // 4. Run Claude Code as a full agent
       job.status = "running_claude";
       job.step = "running_claude";
       console.log(`[job:${jobId}] running_claude`);
 
-      const promptPath = "/tmp/claude-prompt.txt";
-      fs.writeFileSync(promptPath, prompt);
-
       // chown so non-root user can access the cloned repo
       execSync(`chown -R claudeuser:claudeuser ${WORKDIR}`, { shell: "/bin/bash" });
+
+      // Write prompt to temp file outside the repo
+      const promptPath = "/tmp/claude-prompt.txt";
+      fs.writeFileSync(promptPath, prompt);
       execSync(`chown claudeuser:claudeuser ${promptPath}`, { shell: "/bin/bash" });
 
-      const fixedContent = execSync(
-        `su -p -s /bin/bash claudeuser -c "cat ${promptPath} | claude -p --dangerously-skip-permissions" 2>&1`,
+      const claudeOutput = execSync(
+        `su -p -s /bin/bash claudeuser -c "claude -p --dangerously-skip-permissions < ${promptPath}"`,
         {
           cwd: WORKDIR,
           env: process.env,
           shell: "/bin/bash",
-          timeout: 120000
+          timeout: 300000
         }
-      ).toString().trim();
+      ).toString();
 
-      console.log(`[job:${jobId}] claude output length:`, fixedContent.length);
-      console.log(`[job:${jobId}] claude output preview:`, fixedContent.substring(0, 200));
+      console.log(`[job:${jobId}] claude output:`, claudeOutput);
 
-      // 5. Write the fixed content back and verify a change was made
-      if (fixedContent === originalContent.trim()) {
-        throw new Error("Claude returned identical content. No fix was applied.");
+      // 5. Check if files were actually changed
+      const diff = await simpleGit(WORKDIR).diff();
+      console.log(`[job:${jobId}] git diff:`, diff || "(no changes)");
+      if (!diff) {
+        throw new Error("Claude did not modify any files. The fix was not applied.");
       }
-      fs.writeFileSync(targetPath, fixedContent);
 
       // 6. Commit & push changes
       job.status = "committing";
