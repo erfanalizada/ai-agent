@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Claude CLI (API mode)
-RUN npm install -g @anthropic-ai/claude
+RUN npm install -g @anthropic-ai/claude-code
 
 WORKDIR /app
 COPY . .
