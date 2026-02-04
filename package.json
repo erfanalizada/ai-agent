@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
+    "cors": "^2.8.6",
     "express": "^4.19.2",
     "simple-git": "^3.22.0"
   }

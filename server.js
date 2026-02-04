@@ -3,8 +3,10 @@ import simpleGit from "simple-git";
 import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import cors from "cors";
 
 const app = express();
+app.use(cors({ origin: /\.vercel\.app$/ }));
 app.use(express.json());
 
 const WORKDIR = "/tmp/client-demo";
