@@ -77,41 +77,36 @@ app.post("/report", (req, res) => {
       await simpleGit().clone(CLIENT_REPO_URL, WORKDIR);
       const git = simpleGit(WORKDIR);
 
-      // 3. Create Claude Code task file
-      const task = `
-You are a senior frontend developer working in this repository.
-
-STEP 1: Read the file "${file}" in this directory using your Read tool.
-STEP 2: Identify the bug described below.
-STEP 3: Use your Edit or Write tool to fix the file on disk. You MUST modify the actual file, not just describe the fix.
-
-REPORTED ISSUE:
-${issue}
-
-EXPECTED BEHAVIOR:
-${expected}
-
-TARGET FILE:
-${file}
-
-CONSTRAINTS:
-- Make the smallest possible change
-- Do NOT add dependencies
-- Do NOT refactor unrelated code
-- You MUST use your tools to edit the file directly
-`;
-
-      const taskPath = path.join(WORKDIR, "TASK.md");
-      fs.writeFileSync(taskPath, task.trim());
+      // 3. Build the prompt (passed via stdin, no file written to repo)
+      const prompt = [
+        `You are a senior frontend developer. You are working in a git repository at ${WORKDIR}.`,
+        ``,
+        `STEP 1: Read the file "${file}" using your Read tool to understand the current code.`,
+        `STEP 2: Identify the bug described below in that file.`,
+        `STEP 3: Use your Edit tool to fix "${file}" directly on disk. Do NOT create new files. Do NOT edit any other file.`,
+        ``,
+        `REPORTED ISSUE: ${issue}`,
+        `EXPECTED BEHAVIOR: ${expected}`,
+        `TARGET FILE: ${WORKDIR}/${file}`,
+        ``,
+        `IMPORTANT: Only modify "${file}". Do not create or edit any other files.`,
+      ].join("\n");
 
       // 4. Run Claude Code (repo-aware edit)
       job.status = "running_claude";
       job.step = "running_claude";
       console.log(`[job:${jobId}] running_claude`);
+      console.log(`[job:${jobId}] prompt:`, prompt);
       // chown so non-root user can access the cloned repo
       execSync(`chown -R claudeuser:claudeuser ${WORKDIR}`, { shell: "/bin/bash" });
+
+      // Write prompt to a temp file outside the repo so Claude doesn't see it
+      const promptPath = "/tmp/claude-prompt.txt";
+      fs.writeFileSync(promptPath, prompt);
+      execSync(`chown claudeuser:claudeuser ${promptPath}`, { shell: "/bin/bash" });
+
       const claudeOutput = execSync(
-        `su -p -s /bin/bash claudeuser -c "cat TASK.md | claude -p --dangerously-skip-permissions" 2>&1`,
+        `su -p -s /bin/bash claudeuser -c "cat ${promptPath} | claude -p --dangerously-skip-permissions" 2>&1`,
         {
           cwd: WORKDIR,
           env: process.env,
