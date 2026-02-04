@@ -30,12 +30,22 @@ const CLIENT_REPO_URL =
  */
 app.get("/test-claude", (req, res) => {
   try {
-    const output = execSync("claude --version", {
+    const version = execSync("claude --version", {
       env: process.env,
       shell: "/bin/bash"
-    }).toString();
+    }).toString().trim();
 
-    res.status(200).send(output);
+    // Test that the API key works by running a simple prompt as claudeuser
+    const testOutput = execSync(
+      `su -s /bin/bash claudeuser -c "export HOME=/home/claudeuser && export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' && export PATH='$PATH' && echo 'Say hi' | claude -p --dangerously-skip-permissions"`,
+      {
+        env: process.env,
+        shell: "/bin/bash",
+        timeout: 30000
+      }
+    ).toString().trim();
+
+    res.status(200).json({ version, apiTest: testOutput });
   } catch (err) {
     res.status(500).send(err.toString());
   }
