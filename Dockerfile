@@ -1,9 +1,15 @@
-FROM node:20
+FROM node:20-slim
 
-RUN apt-get update && apt-get install -y git curl
+# System deps
+RUN apt-get update && apt-get install -y \
+  git \
+  curl \
+  ca-certificates \
+  bash \
+  && rm -rf /var/lib/apt/lists/*
 
-# Install Claude CLI
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install Claude CLI (API mode)
+RUN npm install -g @anthropic-ai/claude
 
 WORKDIR /app
 COPY . .
