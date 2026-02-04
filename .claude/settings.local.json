@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm ls:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(curl -X POST https://ai-agent-production-765c.up.railway.app/report -H \"Content-Type: application/json\" -d \"{\"\"issue\"\": \"\"The Show Alert button has no click event handler attached. Clicking it does nothing.\"\", \"\"expected\"\": \"\"When the user clicks the Show Alert button, a browser alert should appear with the message Hello World.\"\", \"\"file\"\": \"\"index.html\"\"}\")",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -79,16 +79,11 @@ app.post("/report", (req, res) => {
 
       // 3. Create Claude Code task file
       const task = `
-You are a senior frontend developer.
+You are a senior frontend developer working in this repository.
 
-GOAL:
-Fix the reported bug in this repository.
-
-CONSTRAINTS:
-- Make the smallest possible change
-- Do NOT add dependencies
-- Do NOT refactor unrelated code
-- Modify ONLY what is required
+STEP 1: Read the file "${file}" in this directory using your Read tool.
+STEP 2: Identify the bug described below.
+STEP 3: Use your Edit or Write tool to fix the file on disk. You MUST modify the actual file, not just describe the fix.
 
 REPORTED ISSUE:
 ${issue}
@@ -99,9 +94,11 @@ ${expected}
 TARGET FILE:
 ${file}
 
-INSTRUCTIONS:
-- Apply the fix directly in the codebase
-- Do not explain, just implement
+CONSTRAINTS:
+- Make the smallest possible change
+- Do NOT add dependencies
+- Do NOT refactor unrelated code
+- You MUST use your tools to edit the file directly
 `;
 
       const taskPath = path.join(WORKDIR, "TASK.md");
@@ -124,12 +121,19 @@ INSTRUCTIONS:
       ).toString();
       console.log(`[job:${jobId}] claude output:`, claudeOutput);
 
-      // 5. Commit & push changes
+      // 5. Check if files were actually changed
+      const diff = await simpleGit(WORKDIR).diff();
+      console.log(`[job:${jobId}] git diff:`, diff || "(no changes)");
+      if (!diff) {
+        throw new Error("Claude did not modify any files. The fix was not applied.");
+      }
+
+      // 6. Commit & push changes
       job.status = "committing";
       job.step = "committing";
       console.log(`[job:${jobId}] committing`);
-      await git.add(".");
-      await git.commit("AI fix: reported frontend issue");
+      await simpleGit(WORKDIR).add(".");
+      await simpleGit(WORKDIR).commit("AI fix: reported frontend issue");
 
       job.status = "pushing";
       job.step = "pushing";
