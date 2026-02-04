@@ -19,12 +19,12 @@ const CLIENT_REPO_URL =
  * =========================
  * TEMP TEST ENDPOINT
  * =========================
- * Confirms claude-code is installed and runnable.
+ * Confirms claude is installed and runnable.
  * DELETE after verification.
  */
 app.get("/test-claude", (req, res) => {
   try {
-    const output = execSync("claude-code --version", {
+    const output = execSync("claude --version", {
       env: process.env,
       shell: "/bin/bash"
     }).toString();
@@ -93,7 +93,7 @@ INSTRUCTIONS:
     execSync(
       `
       cd ${WORKDIR}
-      claude-code apply TASK.md
+      claude apply TASK.md
       `,
       {
         env: process.env,
