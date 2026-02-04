@@ -112,8 +112,9 @@ INSTRUCTIONS:
       job.step = "running_claude";
       console.log(`[job:${jobId}] running_claude`);
       execSync(
-        `cd ${WORKDIR} && claude -p --dangerously-skip-permissions "$(cat TASK.md)"`,
+        `cat TASK.md | claude -p --dangerously-skip-permissions`,
         {
+          cwd: WORKDIR,
           env: process.env,
           shell: "/bin/bash",
           stdio: "inherit",
