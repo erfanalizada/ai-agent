@@ -35,19 +35,27 @@ app.get("/test-claude", (req, res) => {
       shell: "/bin/bash"
     }).toString().trim();
 
+    // Check if API key is set
+    const keyPrefix = process.env.ANTHROPIC_API_KEY
+      ? process.env.ANTHROPIC_API_KEY.substring(0, 15) + "..."
+      : "NOT SET";
+
     // Test that the API key works by running a simple prompt as claudeuser
+    const apiKey = process.env.ANTHROPIC_API_KEY || "";
+    const pathVar = process.env.PATH || "";
     const testOutput = execSync(
-      `su -s /bin/bash claudeuser -c "export HOME=/home/claudeuser && export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' && export PATH='$PATH' && echo 'Say hi' | claude -p --dangerously-skip-permissions"`,
+      `su -s /bin/bash claudeuser -c "export HOME=/home/claudeuser && export ANTHROPIC_API_KEY='${apiKey.replace(/'/g, "'\\''")}' && export PATH='${pathVar}' && echo 'Say hi' | claude -p --dangerously-skip-permissions" 2>&1`,
       {
-        env: process.env,
         shell: "/bin/bash",
-        timeout: 30000
+        timeout: 60000
       }
     ).toString().trim();
 
-    res.status(200).json({ version, apiTest: testOutput });
+    res.status(200).json({ version, keyPrefix, apiTest: testOutput });
   } catch (err) {
-    res.status(500).send(err.toString());
+    const stderr = err.stderr ? err.stderr.toString() : "";
+    const stdout = err.stdout ? err.stdout.toString() : "";
+    res.status(500).json({ error: err.message, stderr, stdout });
   }
 });
 
